@@ -31,35 +31,54 @@ resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle){
 	if gnome.position.x < brick.x + brick.width/2 && gnome.position.y < brick.y+ brick.height/2 && gnome.position.x + gnome.size.x > brick.x && gnome.position.y + gnome.size.y > brick.y {
 		w := gnome.position.x + gnome.size.x - brick.x
 		h := gnome.position.y + gnome.size.y - brick.y
-		if w < h do gnome.position.x += -w
-		else do gnome.position.y += -h
-		gnome.moveDirection = {0,0}
+		if w < h {
+			gnome.position.x += -w
+			gnome.moveDirection *= {-1/2.,1/2.}
+		} else { 
+			gnome.position.y += -h
+			gnome.moveDirection *= {1/2.,-1/2.}
+		}
 	}
 	// right top corner(2)
 	if gnome.position.x > brick.x + brick.width/2 && gnome.position.y < brick.y+ brick.height/2	&& gnome.position.x < brick.x + brick.width && gnome.position.y + gnome.size.y > brick.y{
 		w := brick.x + brick.width - gnome.position.x 
 		h := gnome.position.y + gnome.size.y - brick.y
-		if w < h do gnome.position.x += w
-		else do gnome.position.y += -h
-		gnome.moveDirection = {0,0}
+		if w < h { 
+			gnome.position.x += w
+			gnome.moveDirection *= {-1/2.,1/2.}
+		} else {
+			gnome.position.y += -h
+			gnome.moveDirection *= {1/2.,-1/2.}
+		}
 	}
 	// left bottom corner(1)
 	if gnome.position.x < brick.x + brick.width/2 && gnome.position.y > brick.y+ brick.height/2 && gnome.position.x + gnome.size.x > brick.x && gnome.position.y < brick.y + brick.height {
 		w := gnome.position.x + gnome.size.x - brick.x
 		h := brick.y + brick.height - gnome.position.y
-		if w < h do gnome.position.x += -w
-		else do gnome.position.y += h
-		gnome.moveDirection = {0,0}
+		if w < h {
+			gnome.position.x += -w
+			gnome.moveDirection *= {-1/2.,1/2.}
+		} else { 
+			gnome.position.y += h
+			gnome.moveDirection *= {1/2.,-1/2.}
+		}
 	}
 	// right bottom corner(4)
 	if gnome.position.x > brick.x + brick.width/2 && gnome.position.y > brick.y+ brick.height/2 && gnome.position.x < brick.x + brick.width && gnome.position.y < brick.y + brick.height {
 		w := brick.x + brick.width - gnome.position.x 
 		h := brick.y + brick.height - gnome.position.y
-		if w < h do gnome.position.x += w
-		else do gnome.position.y += h
-		gnome.moveDirection = {0,0}
+		if w < h {
+			gnome.position.x += w
+			gnome.moveDirection *= {-1/2.,1/2.}
+		} else {
+			gnome.position.y += h
+			gnome.moveDirection *= {1/2.,-1/2.}
+		}
 	}
 	if rl.FloatEquals(gnome.position.y + gnome.size.y, brick.y) do gnome.canJump = true
+}
+
+load_textures :: proc() {
 }
 
 main :: proc() {
@@ -77,10 +96,16 @@ main :: proc() {
 		500,
 		500,
 		300,
-		200,
+		180,
 	}
     rl.InitWindow(width, height, "Gnome")
     rl.SetTargetFPS(60)
+		
+    gnome_img := rl.LoadImage("./res/gnome2.png")
+    defer rl.UnloadImage(gnome_img)
+
+    rl.ImageResizeNN(&gnome_img, cast(i32)PLAYER_SIZE.x, cast(i32)PLAYER_SIZE.y)
+	gnome_tex := rl.LoadTextureFromImage(gnome_img)
 	
 	for !rl.WindowShouldClose() {
 		deltaTime := rl.GetFrameTime()
@@ -117,15 +142,15 @@ main :: proc() {
 
 			
 			rl.DrawRectangleV(
-				{gnome.position.x-50, gnome.position.y-gnome.jumpPower/PLAYER_POWER_MAX*100},
-				{20, gnome.jumpPower/PLAYER_POWER_MAX*100},
+				{gnome.position.x-50, gnome.position.y-(gnome.jumpPower-2)/(PLAYER_POWER_MAX-2)*100},
+				{20, (gnome.jumpPower-2)/(PLAYER_POWER_MAX-2)*100},
 				rl.RED
 			)	
 		}
 		if !rl.IsKeyDown(rl.KeyboardKey.UP) && gnome.prepJump{
 			fmt.println(gnome.jumpPower)
 			gnome.moveDirection = gnome.jumpDirection*gnome.jumpPower
-			gnome.jumpPower = 0.5
+			gnome.jumpPower = 2
 			gnome.prepJump = false
 			gnome.canJump = false
 		}
@@ -146,7 +171,7 @@ main :: proc() {
 		rl.DrawText(fmt.caprintf("%v",gnome.position.x), 20, 140, 40, rl.BLACK)	
 		rl.DrawText(fmt.caprintf("%v",gnome.position.y), 20, 200, 40, rl.BLACK)	
 		rl.DrawRectangleRec(brick, rl.BLACK)
-		rl.DrawRectangleV(gnome.position, gnome.size, rl.RED)
+		rl.DrawTextureV(gnome_tex, gnome.position, rl.WHITE)
 
 
 		rl.EndDrawing()
