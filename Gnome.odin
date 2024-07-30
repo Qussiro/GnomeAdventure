@@ -23,11 +23,17 @@ Player :: struct {
     canJump: int,
     prepJump: bool,
     jumpPower: f32,
+    swingDir: int,
 }
- 
+
+Brick :: struct {
+    position: rl.Vector2,
+    size: rl.Vector2,
+}
+
 State :: struct {
     gnome: Player,
-    bricks: [2]rl.Rectangle,
+    bricks: [2]Brick,
     bricksPos: [2]rl.Vector2,
     gnome_tex: rl.Texture,
     gnome_rot_sound: [MAX_SOUND] rl.Sound,
@@ -39,6 +45,7 @@ State :: struct {
     needPoint: rl.Vector2,
     deltaTime: f32,
     hookLength: f32,
+    hookedBrick: int,
     
 }
 
@@ -53,30 +60,27 @@ state := State {
         -1,
         false,
         0.5,
+        -1
     },
     bricks = {
         {
-            -6000,
-            820,
-            13000,
-            8000
+            {-6000, 820},
+            {13000, 8000}
         },
         {
-            500,
-            500,
-            400,
-            200,       
+            {500, 200},
+            {400, 200}       
         },
     },
     
     
 }
     
-resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle) -> bool {
+resolve_collision :: proc(gnome:^Player, brick:Brick) -> bool {
     // left top corner(3 on image)
-    if gnome.position.x < brick.x + brick.width/2 && gnome.position.y < brick.y+ brick.height/2 && gnome.position.x + gnome.size.x > brick.x && gnome.position.y + gnome.size.y > brick.y {
-        w := gnome.position.x + gnome.size.x - brick.x
-        h := gnome.position.y + gnome.size.y - brick.y
+    if gnome.position.x < brick.position.x + brick.size.x/2 && gnome.position.y < brick.position.y+ brick.size.y/2 && gnome.position.x + gnome.size.x > brick.position.x && gnome.position.y + gnome.size.y > brick.position.y {
+        w := gnome.position.x + gnome.size.x - brick.position.x
+        h := gnome.position.y + gnome.size.y - brick.position.y
         if w < h {
             gnome.position.x += -w
             gnome.moveDirection *= {-1/2.,1/2.}
@@ -86,9 +90,9 @@ resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle) -> bool {
         }
     }
     // right top corner(2)
-    if gnome.position.x > brick.x + brick.width/2 && gnome.position.y < brick.y+ brick.height/2  && gnome.position.x < brick.x + brick.width && gnome.position.y + gnome.size.y > brick.y{
-        w := brick.x + brick.width - gnome.position.x 
-        h := gnome.position.y + gnome.size.y - brick.y
+    if gnome.position.x > brick.position.x + brick.size.x/2 && gnome.position.y < brick.position.y+ brick.size.y/2  && gnome.position.x < brick.position.x + brick.size.x && gnome.position.y + gnome.size.y > brick.position.y{
+        w := brick.position.x + brick.size.x - gnome.position.x 
+        h := gnome.position.y + gnome.size.y - brick.position.y
         if w < h { 
             gnome.position.x += w
             gnome.moveDirection *= {-1/2.,1/2.}
@@ -98,9 +102,9 @@ resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle) -> bool {
         }
     }
     // left bottom corner(1)
-    if gnome.position.x < brick.x + brick.width/2 && gnome.position.y > brick.y+ brick.height/2 && gnome.position.x + gnome.size.x > brick.x && gnome.position.y < brick.y + brick.height {
-        w := gnome.position.x + gnome.size.x - brick.x
-        h := brick.y + brick.height - gnome.position.y
+    if gnome.position.x < brick.position.x + brick.size.x/2 && gnome.position.y > brick.position.y+ brick.size.y/2 && gnome.position.x + gnome.size.x > brick.position.x && gnome.position.y < brick.position.y + brick.size.y {
+        w := gnome.position.x + gnome.size.x - brick.position.x
+        h := brick.position.y + brick.size.y - gnome.position.y
         if w < h {
             gnome.position.x += -w
             gnome.moveDirection *= {-1/2.,1/2.}
@@ -110,9 +114,9 @@ resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle) -> bool {
         }
     }
     // right bottom corner(4)
-    if gnome.position.x > brick.x + brick.width/2 && gnome.position.y > brick.y+ brick.height/2 && gnome.position.x < brick.x + brick.width && gnome.position.y < brick.y + brick.height {
-        w := brick.x + brick.width - gnome.position.x 
-        h := brick.y + brick.height - gnome.position.y
+    if gnome.position.x > brick.position.x + brick.size.x/2 && gnome.position.y > brick.position.y+ brick.size.y/2 && gnome.position.x < brick.position.x + brick.size.x && gnome.position.y < brick.position.y + brick.size.y {
+        w := brick.position.x + brick.size.x - gnome.position.x 
+        h := brick.position.y + brick.size.y - gnome.position.y
         if w < h {
             gnome.position.x += w
             gnome.moveDirection *= {-1/2.,1/2.}
@@ -121,28 +125,28 @@ resolve_collision :: proc(gnome:^Player, brick:rl.Rectangle) -> bool {
             gnome.moveDirection *= {1/2.,-1/2.}
         }
     }
-    return rl.FloatEquals(gnome.position.y + gnome.size.y, brick.y) && gnome.position.x + gnome.size.x >= brick.x && gnome.position.x <= brick.x + brick.width
+    return rl.FloatEquals(gnome.position.y + gnome.size.y, brick.position.y) && gnome.position.x + gnome.size.x >= brick.position.x && gnome.position.x <= brick.position.x + brick.size.x
 }
 
-draw_hook :: proc(hookPos:rl.Vector2, gnome:^Player, brick:rl.Rectangle) -> (rl.Vector2, bool) {
+draw_hook :: proc(hookPos:rl.Vector2, gnome:^Player, brick:Brick) -> (rl.Vector2, bool) {
     needPoint : rl.Vector2
 
     a, b := find_line(hookPos, gnome.position + gnome.size/2)
 
     // Bottom
-    x := (brick.y + brick.height - b) / a 
-    needPoint = {x, brick.y + brick.height} - {brick.x, brick.y}
-    if x >= brick.x && x <= brick.x + brick.width && gnome.position.y > brick.y + brick.height do return needPoint, true
+    x := (brick.position.y + brick.size.y - b) / a 
+    needPoint = {x, brick.position.y + brick.size.y} - {brick.position.x, brick.position.y}
+    if x >= brick.position.x && x <= brick.position.x + brick.size.x && gnome.position.y > brick.position.y + brick.size.y do return needPoint, true
 
     // Left wall 
 
-    needPoint = {brick.x, a * brick.x + b} - {brick.x, brick.y}
-    if a * brick.x + b >= brick.y && a * brick.x + b <= brick.y + brick.height && gnome.position.x + gnome.size.x <= brick.x && state.look == .right do return needPoint, true
+    needPoint = {brick.position.x, a * brick.position.x + b} - {brick.position.x, brick.position.y}
+    if a * brick.position.x + b >= brick.position.y && a * brick.position.x + b <= brick.position.y + brick.size.y && gnome.position.x + gnome.size.x <= brick.position.x && state.look == .right do return needPoint, true
 
     // Right wall 
 
-    needPoint = {brick.x + brick.width, a * (brick.x + brick.width) + b} - {brick.x, brick.y}
-    if a * (brick.x + brick.width) + b >= brick.y && a * (brick.x + brick.width) + b <= brick.y + brick.height && gnome.position.x + gnome.size.x >= brick.x + brick.width && state.look == .left do return needPoint, true
+    needPoint = {brick.position.x + brick.size.x, a * (brick.position.x + brick.size.x) + b} - {brick.position.x, brick.position.y}
+    if a * (brick.position.x + brick.size.x) + b >= brick.position.y && a * (brick.position.x + brick.size.x) + b <= brick.position.y + brick.size.y && gnome.position.x + gnome.size.x >= brick.position.x + brick.size.x && state.look == .left do return needPoint, true
 
     return needPoint, false
 }
@@ -171,7 +175,7 @@ load_sound :: proc() {
 user_input :: proc() {
     using state
     
-    if rl.IsKeyDown(rl.KeyboardKey.LEFT) && gnome.canJump != -1 && !gnome.prepJump {
+    if rl.IsKeyDown(rl.KeyboardKey.LEFT) && gnome.canJump >= 0 && !gnome.prepJump {
         gnome.moveDirection = {-1,0}
         if look == .right {
             rl.PlaySound(gnome_rot_sound[currentSound])
@@ -180,7 +184,7 @@ user_input :: proc() {
         look = .left
     }
 
-       if rl.IsKeyDown(rl.KeyboardKey.RIGHT) && gnome.canJump != -1 && !gnome.prepJump{
+       if rl.IsKeyDown(rl.KeyboardKey.RIGHT) && gnome.canJump >= 0 && !gnome.prepJump{
         gnome.moveDirection = {1,0}
         if look == .left {
             rl.PlaySound(gnome_rot_sound[currentSound])
@@ -188,9 +192,9 @@ user_input :: proc() {
         }
         look = .right
     }    
-    if gnome.canJump != -1 && !rl.IsKeyDown(rl.KeyboardKey.LEFT) && !rl.IsKeyDown(rl.KeyboardKey.RIGHT) {gnome.moveDirection = {0,0}}
+    if gnome.canJump >= 0 && !rl.IsKeyDown(rl.KeyboardKey.LEFT) && !rl.IsKeyDown(rl.KeyboardKey.RIGHT) {gnome.moveDirection = {0,0}}
 
-    if rl.IsKeyDown(rl.KeyboardKey.UP) && gnome.canJump != -1 {
+    if rl.IsKeyDown(rl.KeyboardKey.UP) && gnome.canJump >= 0 {
         gnome.moveDirection = {0,0}
         gnome.jumpDirection = {0,-1}
         gnome.prepJump = true
@@ -233,7 +237,7 @@ user_input :: proc() {
     if rl.IsKeyDown(rl.KeyboardKey.X) {
         time += deltaTime * 2
         angle := cast(f32) -(1 + math.sin(time)) * math.PI / 4
-    
+
         if look == .right {
             hookPos = gnome.position + gnome.size/2 + rl.Vector2Rotate({150, 0}, angle)
             rl.DrawRectangleV(hookPos - {10,10}, {20, 20}, rl.RED)
@@ -246,13 +250,24 @@ user_input :: proc() {
             j := a * i + b 
                rl.DrawCircleV({i, j}, 2, rl.GRAY)
         }
-    
     } else do time = 0 //math.PI 
     if rl.IsKeyReleased(rl.KeyboardKey.X) {
-        needPoint, drawPLS = draw_hook(hookPos, &gnome, bricks[1])
-        hookLength = rl.Vector2Length(needPoint+{bricks[1].x, bricks[1].y}-gnome.position-gnome.size/2)
+        if drawPLS == true {
+            drawPLS = false
+            gnome.canJump = -1 
+        } else {
+            for i := 0; i < len(bricks); i+=1 {
+                needPoint, drawPLS = draw_hook(hookPos, &gnome, bricks[i])
+            
+                hookLength = rl.Vector2Length(actual_needed_point(i)-gnome.position-gnome.size/2)
+            
+                if drawPLS == true {
+                    hookedBrick = i
+                    break   
+                }
+            }
+        }
     }
-
 }
 
 render :: proc() {
@@ -260,16 +275,22 @@ render :: proc() {
     
     rl.BeginDrawing()
     rl.ClearBackground(rl.RAYWHITE)
-    rl.DrawRectangleRec(bricks[0], rl.DARKGRAY)
+    
+    rl.DrawRectangleV(bricks[0].position, bricks[0].size, rl.DARKGRAY)
     rl.DrawText("Congrats! You created your first window!", 190, 200, 50, rl.LIGHTGRAY)
 
-    if drawPLS == true do rl.DrawLineV(gnome.position + gnome.size/2, needPoint + {bricks[1].x, bricks[1].y}, rl.GREEN)
+    if drawPLS == true {
+        rl.DrawLineV(gnome.position + gnome.size/2, actual_needed_point(hookedBrick), rl.GREEN)
+    }
     
     rl.DrawFPS(20,20)
     rl.DrawText("Gnome:", 20, 80, 40, rl.BLACK)    
     rl.DrawText(fmt.caprintf("%v",gnome.position.x), 20, 140, 40, rl.BLACK)    
     rl.DrawText(fmt.caprintf("%v",gnome.position.y), 20, 180, 40, rl.BLACK) 
-    rl.DrawRectangleRec(bricks[1], rl.BLACK)
+    rl.DrawText(fmt.caprintf("%v",gnome.moveDirection), 20, 220, 40, rl.BLACK) 
+    rl.DrawText(fmt.caprintf("%v",gnome.canJump), 20, 260, 40, rl.BLACK) 
+    
+    rl.DrawRectangleV(bricks[1].position, bricks[1].size, rl.BLACK)
     
     if !gnome.prepJump { 
         if look == .right do rl.DrawTextureV(gnome_tex, gnome.position, rl.WHITE)
@@ -295,40 +316,68 @@ render :: proc() {
             )
         }
     }
+    rl.DrawLineV(gnome.position + gnome.size/2, gnome.position + gnome.size/2 + gnome.moveDirection*100, rl.PURPLE)
 
     rl.EndDrawing()
 }
 
+actual_needed_point :: proc(i : int) -> rl.Vector2 {    
+    return state.needPoint + state.bricks[i].position
+}
+
 update :: proc() {
     using state
-    
-    gnome.moveDirection += {0,1}*deltaTime*9.8
+
+    if gnome.canJump != -2 do gnome.moveDirection += {0,1}*deltaTime*9.8
     gnome.position += PLAYER_SPD*gnome.moveDirection*deltaTime    
     
-    bricks[1].y = cast(f32) math.sin(rl.GetTime())*200+500
-    bricks[1].x = cast(f32) math.cos(rl.GetTime())*200+500
+    bricks[1].position.y = cast(f32) math.sin(rl.GetTime())*200+500
+    bricks[1].position.x = cast(f32) math.cos(rl.GetTime())*200+500
 
-    if gnome.canJump != -1 {
-        gnome.position.y = bricks[gnome.canJump].y - gnome.size.y   
-        gnome.position.x += bricks[gnome.canJump].x - bricksPos[gnome.canJump].x
+    if gnome.canJump >= 0 {
+        gnome.position.y = bricks[gnome.canJump].position.y - gnome.size.y   
+        gnome.position.x += bricks[gnome.canJump].position.x - bricksPos[gnome.canJump].x
     } 
-    gnome.canJump = -1
+    // gnome.canJump = -1
     
-    vect := needPoint+{bricks[1].x, bricks[1].y}-gnome.position-gnome.size/2
-    if rl.Vector2Length(vect) > hookLength && drawPLS == true {
+    vect := actual_needed_point(hookedBrick)-gnome.position-gnome.size/2    
+    
+    if rl.Vector2Length(vect) >= hookLength && drawPLS == true {
         hookLenNow := rl.Vector2Length(vect)
         hookNeededLen := (hookLenNow - hookLength) * rl.Vector2Normalize(vect)
-            
         gnome.position += hookNeededLen
-    }
+         
+        if gnome.canJump == -1 {
+            gnome.canJump = -2
+
+            if gnome.position.x + gnome.size.x/2 > actual_needed_point(hookedBrick).x {
+                gnome.moveDirection = rl.Vector2Normalize(rl.Vector2Rotate(vect, math.PI/2 * -1)) * rl.Vector2Length(gnome.moveDirection)
+                 gnome.swingDir = -1
+                 // fmt.println("IIIIIIIIII")
+            } else {
+                gnome.moveDirection = rl.Vector2Normalize(rl.Vector2Rotate(vect, math.PI/2 * 1)) * rl.Vector2Length(gnome.moveDirection)
+                gnome.swingDir = 1
+                // fmt.println("OOOOOOOOO")
+            }
+        }
+        else {
+            assert(gnome.canJump != -1, fmt.aprintf("WTF: %d", gnome.canJump))
+            // fmt.println("aaaaaaa")
+            gnome.moveDirection = rl.Vector2Normalize(rl.Vector2Rotate(vect, math.PI/2 * cast(f32) gnome.swingDir)) * rl.Vector2Length(gnome.moveDirection)
+            gnome.moveDirection = -0.9*deltaTime*rl.Vector2Normalize(gnome.moveDirection)
+            
+        }
+    } 
+    if gnome.canJump > -2 do gnome.canJump = -1
     
     for i := 0; i < len(bricks); i+=1 {
         if resolve_collision(&gnome, bricks[i]) do gnome.canJump = i
     }
     
     for i := 0; i < len(bricks); i+=1 {
-        bricksPos[i] = {bricks[i].x, bricks[i].y}
+        bricksPos[i] = bricks[i].position
     }
+    
 }
 
 
