@@ -6,14 +6,15 @@ import "core:math"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-width :: 1600
-height :: 900
+SCREEN_WIDTH :: 1600
+SCREEN_HEIGHT :: 900
 PLAYER_SPD :: 500.0
 PLAYER_POWER_MAX :: 5
 POWER_PER_FRAME :: 3
 PLAYER_START_POS :: rl.Vector2 {250, 0}
 PLAYER_SIZE :: rl.Vector2 {100, 100}
 MAX_SOUND :: 10
+BRICK_COUNT :: 4
 
 Player :: struct {
     position: rl.Vector2,
@@ -30,12 +31,13 @@ Player :: struct {
 Brick :: struct {
     position: rl.Vector2,
     size: rl.Vector2,
+    color: rl.Color
 }
 
 State :: struct {
     gnome: Player,
-    bricks: [2]Brick,
-    bricksPos: [2]rl.Vector2,
+    bricks: [BRICK_COUNT]Brick,
+    bricksPos: [BRICK_COUNT]rl.Vector2,
     gnome_tex: rl.Texture,
     gnome_rot_sound: [MAX_SOUND] rl.Sound,
     currentSound: int,
@@ -49,6 +51,7 @@ State :: struct {
     hookedBrick: int,
     hookAngle: f32,
     hookAngleVelocity: f32,
+    cam: rl.Camera2D
 }
 
 
@@ -67,11 +70,23 @@ state := State {
     bricks = {
         {
             {-6000, 820},
-            {13000, 8000}
+            {13000, 8000},
+            rl.GRAY
+        },
+        {
+            {130, 500},
+            {400, 200},
+            rl.DARKGREEN       
+        },
+        {
+            {900, 500},
+            {400, 200},
+            rl.DARKGREEN       
         },
         {
             {500, 300},
-            {400, 200}       
+            {400, 200},   
+            rl.DARKGREEN
         },
     },
     
@@ -80,10 +95,10 @@ state := State {
     
 resolve_collision :: proc(gnome:^Player, brick:Brick) -> Collision_Side {
     // left top corner(3 on image)
-    if gnome.position.x < brick.position.x + brick.size.x/2 && gnome.position.y < brick.position.y+ brick.size.y/2 && gnome.position.x + gnome.size.x > brick.position.x && gnome.position.y + gnome.size.y >= brick.position.y {
+    if gnome.position.x <= brick.position.x + brick.size.x/2 && gnome.position.y <= brick.position.y + brick.size.y/2 && gnome.position.x + gnome.size.x >= brick.position.x && gnome.position.y + gnome.size.y >= brick.position.y {
         w := gnome.position.x + gnome.size.x - brick.position.x
         h := gnome.position.y + gnome.size.y - brick.position.y
-        if w < h {
+        if w <= h {
             gnome.position.x += -w
             gnome.moveDirection *= {-1/2.,1/2.}
             return .other
@@ -94,10 +109,10 @@ resolve_collision :: proc(gnome:^Player, brick:Brick) -> Collision_Side {
         }
     }
     // right top corner(2)
-    if gnome.position.x > brick.position.x + brick.size.x/2 && gnome.position.y < brick.position.y+ brick.size.y/2  && gnome.position.x < brick.position.x + brick.size.x && gnome.position.y + gnome.size.y >= brick.position.y{
+    if gnome.position.x >= brick.position.x + brick.size.x/2 && gnome.position.y <= brick.position.y + brick.size.y/2 && gnome.position.x <= brick.position.x + brick.size.x && gnome.position.y + gnome.size.y >= brick.position.y{
         w := brick.position.x + brick.size.x - gnome.position.x 
         h := gnome.position.y + gnome.size.y - brick.position.y
-        if w < h { 
+        if w <= h { 
             gnome.position.x += w
             gnome.moveDirection *= {-1/2.,1/2.}
             return .other
@@ -108,10 +123,10 @@ resolve_collision :: proc(gnome:^Player, brick:Brick) -> Collision_Side {
         }
     }
     // left bottom corner(1)
-    if gnome.position.x < brick.position.x + brick.size.x/2 && gnome.position.y > brick.position.y+ brick.size.y/2 && gnome.position.x + gnome.size.x > brick.position.x && gnome.position.y <= brick.position.y + brick.size.y {
+    if gnome.position.x <= brick.position.x + brick.size.x/2 && gnome.position.y >= brick.position.y + brick.size.y/2 && gnome.position.x + gnome.size.x >= brick.position.x && gnome.position.y <= brick.position.y + brick.size.y {
         w := gnome.position.x + gnome.size.x - brick.position.x
         h := brick.position.y + brick.size.y - gnome.position.y
-        if w < h {
+        if w <= h {
             gnome.position.x += -w
             gnome.moveDirection *= {-1/2.,1/2.}
         } else { 
@@ -121,10 +136,10 @@ resolve_collision :: proc(gnome:^Player, brick:Brick) -> Collision_Side {
         return .other
     }
     // right bottom corner(4)
-    if gnome.position.x > brick.position.x + brick.size.x/2 && gnome.position.y > brick.position.y+ brick.size.y/2 && gnome.position.x < brick.position.x + brick.size.x && gnome.position.y <= brick.position.y + brick.size.y {
+    if gnome.position.x >= brick.position.x + brick.size.x/2 && gnome.position.y >= brick.position.y + brick.size.y/2 && gnome.position.x <= brick.position.x + brick.size.x && gnome.position.y <= brick.position.y + brick.size.y {
         w := brick.position.x + brick.size.x - gnome.position.x 
         h := brick.position.y + brick.size.y - gnome.position.y
-        if w < h {
+        if w <= h {
             gnome.position.x += w
             gnome.moveDirection *= {-1/2.,1/2.}
         } else {
@@ -234,7 +249,7 @@ user_input :: proc() {
             rl.RED
         )    
     }
-    if !rl.IsKeyDown(rl.KeyboardKey.UP) && gnome.prepJump{
+    if !rl.IsKeyDown(rl.KeyboardKey.UP) && gnome.prepJump && gnome.canJump >= 0 {
         fmt.println(gnome.jumpPower)
         gnome.moveDirection = gnome.jumpDirection*gnome.jumpPower
         gnome.jumpPower = 2
@@ -246,7 +261,7 @@ user_input :: proc() {
         hooked = false
         gnome.canJump = -1
 
-        vect := gnome_center_position() - actual_needed_point(hookedBrick)
+        vect := actual_gnome_position() - actual_needed_point(hookedBrick)
         gnome.moveDirection = 50 * rl.Vector2Normalize(rl.Vector2Rotate(vect, math.PI/2)) * hookAngleVelocity
     }
     if rl.IsKeyDown(rl.KeyboardKey.LEFT) && gnome.canJump == -2 && look == .right {
@@ -294,24 +309,16 @@ render :: proc() {
     using state
     
     rl.BeginDrawing()
+    rl.BeginMode2D(cam)   
     rl.ClearBackground(rl.RAYWHITE)
-    
-    rl.DrawRectangleV(bricks[0].position, bricks[0].size, rl.DARKGRAY)
-    rl.DrawText("Congrats! You created your first window!", 190, 200, 50, rl.LIGHTGRAY)
-
+   
     if hooked == true {
         rl.DrawLineV(gnome.position + gnome.size/2, actual_needed_point(hookedBrick), rl.GREEN)
     }
-    
-    rl.DrawFPS(20,20)
-    rl.DrawText("Gnome:", 20, 80, 40, rl.BLACK)    
-    rl.DrawText(fmt.caprintf("%v",gnome.position.x), 20, 140, 40, rl.BLACK)    
-    rl.DrawText(fmt.caprintf("%v",gnome.position.y), 20, 180, 40, rl.BLACK) 
-    rl.DrawText(fmt.caprintf("%v",gnome.moveDirection), 20, 220, 40, rl.BLACK) 
-    rl.DrawText(fmt.caprintf("%v",gnome.canJump), 20, 260, 40, rl.BLACK) 
-    
-    rl.DrawRectangleV(bricks[1].position, bricks[1].size, rl.BLACK)
-    
+
+    for i := 0; i < len(bricks); i += 1 {
+        rl.DrawRectangleV(bricks[i].position, bricks[i].size, bricks[i].color)
+    }
     if !gnome.prepJump { 
         if look == .right do rl.DrawTextureV(gnome_tex, gnome.position, rl.WHITE)
         else do rl.DrawTextureRec(gnome_tex, {gnome.size.x, 0, gnome.size.x, gnome.size.y}, gnome.position, rl.WHITE)
@@ -337,7 +344,17 @@ render :: proc() {
         }
     }
     rl.DrawLineV(gnome.position + gnome.size/2, gnome.position + gnome.size/2 + gnome.moveDirection*100, rl.PURPLE)
+    rl.DrawText("Congrats! You created your first window!", 190, 200, 50, rl.LIGHTGRAY)
 
+    rl.EndMode2D()
+
+    rl.DrawFPS(20,20)
+    rl.DrawText("Gnome:", 20, 80, 40, rl.BLACK)    
+    rl.DrawText(fmt.caprintf("%v",gnome.position.x), 20, 140, 40, rl.BLACK)    
+    rl.DrawText(fmt.caprintf("%v",gnome.position.y), 20, 180, 40, rl.BLACK) 
+    rl.DrawText(fmt.caprintf("%v",gnome.moveDirection), 20, 220, 40, rl.BLACK) 
+    rl.DrawText(fmt.caprintf("%v",gnome.canJump), 20, 260, 40, rl.BLACK) 
+    
     rl.EndDrawing()
 }
 
@@ -345,7 +362,7 @@ actual_needed_point :: proc(i : int) -> rl.Vector2 {
     return state.needPoint + state.bricks[i].position
 }
 
-gnome_center_position :: proc() -> rl.Vector2 {
+actual_gnome_position :: proc() -> rl.Vector2 {
     return state.gnome.position + state.gnome.size/2
 }
 
@@ -356,8 +373,8 @@ update :: proc() {
         gnome.moveDirection += {0,1}*deltaTime*9.8
         gnome.position += PLAYER_SPD*gnome.moveDirection*deltaTime    
     }
-    // bricks[1].position.y = cast(f32) math.sin(rl.GetTime())*200+500
-    // bricks[1].position.x = cast(f32) math.cos(rl.GetTime())*200+500
+    bricks[1].position.y = cast(f32) math.sin(rl.GetTime())*200+500
+    bricks[2].position.x = cast(f32) math.cos(rl.GetTime())*200+700
 
     if gnome.canJump >= 0 {
         gnome.position.y = bricks[gnome.canJump].position.y - gnome.size.y   
@@ -365,7 +382,7 @@ update :: proc() {
     } 
     // gnome.canJump = -1
     
-    vect := gnome_center_position() - actual_needed_point(hookedBrick)   
+    vect := actual_gnome_position() - actual_needed_point(hookedBrick)   
     
     if rl.Vector2Length(vect) >= hookLength && hooked == true && gnome.canJump == -1 {
         gnome.canJump = -2
@@ -397,7 +414,8 @@ update :: proc() {
     if gnome.canJump > -2 do gnome.canJump = -1
     
     for i := 0; i < len(bricks); i+=1 {
-        switch resolve_collision(&gnome, bricks[i]){
+        coll := resolve_collision(&gnome, bricks[i])
+        switch coll {
             case .top: gnome.canJump = i
             case .other: hookAngleVelocity = 0
             case .none: 
@@ -407,7 +425,8 @@ update :: proc() {
     for i := 0; i < len(bricks); i+=1 {
         bricksPos[i] = bricks[i].position
     }
-    
+    fmt.printf("MOVE DIR: %v\n",gnome.moveDirection)
+    cam.target = math.lerp(cam.target, actual_gnome_position(), f32(0.2))   
 }
 
 
@@ -424,10 +443,15 @@ find_line :: proc(p1: rl.Vector2, p2: rl.Vector2) -> (a: f32, b: f32) {
 main :: proc() {
     using state
     
-    rl.InitWindow(width, height, "Gnome")
+    rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Gnome")
     rl.InitAudioDevice()
     rl.SetTargetFPS(60)
-
+     
+    cam.target = actual_gnome_position()
+    cam.offset = rl.Vector2 {SCREEN_WIDTH/2, SCREEN_HEIGHT/2}
+    cam.rotation = 0
+    cam.zoom = 1
+    
     // Gnome texture    
     load_texture()
     
